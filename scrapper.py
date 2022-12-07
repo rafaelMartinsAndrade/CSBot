@@ -2,6 +2,7 @@
 import time
 import threading
 import pandas
+import queue
 # from datetime import datetime
 # import os
 
@@ -71,7 +72,7 @@ def logar():
 			element = WebDriverWait(sessao, 1).until(
 				EC.presence_of_element_located((By.XPATH, "//*[@id='user-dropdown']/img"))
 			)
-			print('O usuário já estava logado ao sistema!')
+			# print('O usuário já estava logado ao sistema!')
 			acessarMapas()
 		except TimeoutException:
 			print('Ocorreu um erro ao tentar logar no site!')
@@ -98,15 +99,59 @@ def acessarMapas():
 		element = WebDriverWait(sessao, 10).until(
 			EC.presence_of_element_located((By.XPATH, "//*[@id='navbarMenu']/ul/li[2]/a"))
 		)
-		sessao.execute_script("window.scrollBy(0,5000);")
-		time.sleep(1)
-		sessao.execute_script("window.scrollBy(0,5000);")
-		time.sleep(10)
-		sessao.execute_script("window.scrollBy(0,0);")
+		processarStartups()
 	except TimeoutException:
 		print('Não foi possível acessar os mapas de startup\'s!')
 	except NoSuchElementException:
 		print('Não foi possível acessar os mapas de startup\'s!')
+
+def processarStartups():
+
+	global qCategorias
+	qCategorias = queue.Queue()
+
+	global qSubCategorias
+	qSubCategorias = queue.Queue()
+
+	sessao.execute_script("window.scrollBy(0,1000);")
+	element = WebDriverWait(sessao, 5).until(
+		EC.element_to_be_clickable((By.XPATH, "//*[@id='mapasMain']/div/div/div/section/div[3]/div/div/div[1]/a"))
+	)
+	sessao.execute_script("window.scrollBy(0,1000);")
+	element = WebDriverWait(sessao, 5).until(
+		EC.element_to_be_clickable((By.XPATH, "//*[@id='mapasMain']/div/div/div/section/div[3]/div/div/div[10]/a"))
+	)
+
+	processandoCategorias = True;
+	i = 1
+
+	while processandoCategorias:
+		try:
+			linkCategoria = sessao.find_element("xpath", "//*[@id='mapasMain']/div/div/div/section/div[3]/div/div/div[{0}]/a".format(i))
+			href = linkCategoria.get_attribute("href")
+			nomeCategoria = sessao.find_element("xpath", "//*[@id='mapasMain']/div/div/div/section/div[3]/div/div/div[{0}]/a/div/h5".format(i))
+			nome = nomeCategoria.text
+			print([nome, href])
+			qCategorias.put([nome, href])
+		except NoSuchElementException:
+			processandoCategorias = False
+		i += 1
+	print('Terminou!')
+	sessao.quit()
+	# global startups
+	# startups = True
+
+	# threadScrapper = threading.Thread(target=listarSubCategorias, args=(), daemon=True)
+	# threadScrapper.start()
+
+
+# def listarSubCategorias()
+
+
+def sairSessao():
+	startups = False
+	if sessao:
+		sessao.quit()
 
 if __name__ == '__main__':
 	iniciarSessao()
