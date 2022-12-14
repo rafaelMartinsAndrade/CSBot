@@ -1,8 +1,10 @@
 import gui
 import scrapper
 
+import os
 import threading
 import time
+
 import queue
 
 def iniciarPrograma():
@@ -24,23 +26,18 @@ def iniciarPrograma():
 	while gui.window:
 		time.sleep(0.5)
 
-	scrapper.sairSessao()
-
 def iniciarScrapper():
 	while gui.window:
 		if gui.scrapper:
 			scrapper.iniciarSessao()
-			# try:
-			# 	scrapper.iniciarSessao()
-			# except:
-			# 	print('Ocorreu um erro!')
 			gui.scrapper = False
 
 def listarThreads():
 	while gui.window:
-		for thread in threading.enumerate(): 
+		os.system('cls') or None
+		for thread in threading.enumerate():
 			print(thread.name)
-		time.sleep(0.5)
+		time.sleep(0.1)
 
 if __name__ == '__main__':
 	iniciarPrograma()

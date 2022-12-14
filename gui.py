@@ -1,5 +1,4 @@
 import app
-import scrapper
 
 import time
 import queue

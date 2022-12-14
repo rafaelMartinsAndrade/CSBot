@@ -1,10 +1,18 @@
 #Imports necessários
 import time
 import threading
-import pandas
 import queue
-# from datetime import datetime
-# import os
+import os
+import json
+import urllib.parse
+from datetime import datetime
+
+# Imports do xlsx
+import pandas as pd
+import numpy as np
+from openpyxl import workbook
+from openpyxl import load_workbook
+
 
 # import keyboard
 # import random
@@ -21,21 +29,33 @@ from selenium.common.exceptions import TimeoutException
 from selenium.common.exceptions import NoSuchElementException
 from selenium.common.exceptions import NoSuchWindowException
 from selenium.common.exceptions import ElementClickInterceptedException
+from selenium.common.exceptions import StaleElementReferenceException
 
 from pathlib import Path
+
+OUTPUT_PATH = Path(__file__).parent
+ASSETS_PATH = OUTPUT_PATH / Path("./assets")
+
+def relative_to_assets(path: str) -> Path:
+    return ASSETS_PATH / Path(path)
 
 global ProfilePath
 ProfilePath = Path(__file__).parent / Path("./SeleniumProfile")
 
 def iniciarSessao():
+	global inicioScrapper
+	inicioScrapper = datetime.now()
+	inicioScrapper = inicioScrapper.strftime("%H:%M:%S")
+	print('Inicio: {0}, Fim: -'.format(inicioScrapper))
+
 	#Variáveis de configuração da sessao
 	driver_path = 'chromedriver'
 	download_dir = "D:\\selenium"
 	options = Options()
-	# options.add_argument("--headless")
+	options.add_argument("--headless")
 	options.add_argument('--no-sandbox')
 	options.add_experimental_option('excludeSwitches', ['enable-logging'])
-	options.add_argument("--window-size=1400,800")
+	options.add_argument("--window-size=1000,800")
 	options.add_argument('--allow-running-insecure-content')
 	options.add_argument('--ignore-certificate-errors')
 	options.add_argument(r"user-data-dir={0}".format(ProfilePath))
@@ -43,20 +63,17 @@ def iniciarSessao():
 	#Chama a função que abre a sessão com as configurações e o driver já prédefinidos
 	sessao = webdriver.Chrome(options=options, executable_path=driver_path)
 	#Redireciona a sessão para a url
-	sessao.get(r"https://startupscanner.com/")
-	try:
-		logar()
-	except NoSuchWindowException:
-		print('A sessão foi encerrada!')
+	sessao.get(r"https://startupscanner.com/startups-data?per_page=1&page=1")
+
+	logar()
+
+	global fimScrapper
+	fimScrapper = datetime.now()
+	fimScrapper = fimScrapper.strftime("%H:%M:%S")
+	print('Inicio: {0}, Fim: {1}'.format(inicioScrapper, fimScrapper))
 
 def logar():
-	print('Fazer login')
 	try:
-		element = WebDriverWait(sessao, 1).until(
-			EC.presence_of_element_located((By.XPATH, "//*[@id='btn-login'][contains(@class, 'btnPink')]"))
-		)
-		btnMenuLogin = sessao.find_element("xpath", "//*[@id='btn-login'][contains(@class, 'btnPink')]")
-		btnMenuLogin.click()
 		element = WebDriverWait(sessao, 5).until(
 			EC.element_to_be_clickable((By.XPATH, "//*[@id='emailInput']"))
 		)
@@ -66,92 +83,168 @@ def logar():
 		inputSenha.send_keys('senhaStartupScanner')
 		btnLogin = sessao.find_element("xpath", "//*[@id='login-button']")
 		btnLogin.click()
-		acessarMapas()
+		processarJson()
 	except TimeoutException:
-		try:
-			element = WebDriverWait(sessao, 1).until(
-				EC.presence_of_element_located((By.XPATH, "//*[@id='user-dropdown']/img"))
-			)
-			# print('O usuário já estava logado ao sistema!')
-			acessarMapas()
-		except TimeoutException:
-			print('Ocorreu um erro ao tentar logar no site!')
+		processarJson()
 	except NoSuchElementException:
-		print('Não foi possível acessar os mapas de startup\'s!')
-
-def acessarMapas():
-	try:
-		element = WebDriverWait(sessao, 10).until(
-			EC.presence_of_element_located((By.XPATH, "//*[@id='navbarMenu']/ul/li[2]/a"))
-		)
-		element = WebDriverWait(sessao, 3).until(
-			EC.element_to_be_clickable((By.XPATH, "//*[@id='navbarMenu']/ul/li[2]/a"))
-		)
-
-		while True:
-			try:
-				linkMenuMapa = sessao.find_element("xpath", "//*[@id='navbarMenu']/ul/li[2]/a")
-				linkMenuMapa.click()
-				break
-			except ElementClickInterceptedException:
-				time.sleep(0.5)
-
-		element = WebDriverWait(sessao, 10).until(
-			EC.presence_of_element_located((By.XPATH, "//*[@id='navbarMenu']/ul/li[2]/a"))
-		)
-		processarStartups()
-	except TimeoutException:
-		print('Não foi possível acessar os mapas de startup\'s!')
-	except NoSuchElementException:
-		print('Não foi possível acessar os mapas de startup\'s!')
-
-def processarStartups():
-
-	global qCategorias
-	qCategorias = queue.Queue()
-
-	global qSubCategorias
-	qSubCategorias = queue.Queue()
-
-	sessao.execute_script("window.scrollBy(0,1000);")
-	element = WebDriverWait(sessao, 5).until(
-		EC.element_to_be_clickable((By.XPATH, "//*[@id='mapasMain']/div/div/div/section/div[3]/div/div/div[1]/a"))
-	)
-	sessao.execute_script("window.scrollBy(0,1000);")
-	element = WebDriverWait(sessao, 5).until(
-		EC.element_to_be_clickable((By.XPATH, "//*[@id='mapasMain']/div/div/div/section/div[3]/div/div/div[10]/a"))
-	)
-
-	processandoCategorias = True;
-	i = 1
-
-	while processandoCategorias:
-		try:
-			linkCategoria = sessao.find_element("xpath", "//*[@id='mapasMain']/div/div/div/section/div[3]/div/div/div[{0}]/a".format(i))
-			href = linkCategoria.get_attribute("href")
-			nomeCategoria = sessao.find_element("xpath", "//*[@id='mapasMain']/div/div/div/section/div[3]/div/div/div[{0}]/a/div/h5".format(i))
-			nome = nomeCategoria.text
-			print([nome, href])
-			qCategorias.put([nome, href])
-		except NoSuchElementException:
-			processandoCategorias = False
-		i += 1
-	print('Terminou!')
-	sessao.quit()
-	# global startups
-	# startups = True
-
-	# threadScrapper = threading.Thread(target=listarSubCategorias, args=(), daemon=True)
-	# threadScrapper.start()
-
-
-# def listarSubCategorias()
-
-
-def sairSessao():
-	startups = False
-	if sessao:
+		print('Não foi possível pesquisar as startup\'s!')
 		sessao.quit()
+		return False
+
+def processarJson():
+	try:
+		element = WebDriverWait(sessao, 5).until(
+			EC.presence_of_element_located((By.XPATH, "/html/body/pre"))
+		)
+		preStartupsTemp = sessao.find_element("xpath", "/html/body/pre")
+		jsonStartupsTemp = json.loads(preStartupsTemp.text)
+
+		print('Total de startup\'s para pesquisa: {0}'.format(jsonStartupsTemp['total']))
+		# sessao.get("https://startupscanner.com/startups-data?per_page={0}&page=1".format(jsonStartupsTemp['total']))
+		sessao.get("https://startupscanner.com/startups-data?per_page=10&page=1")
+		element = WebDriverWait(sessao, 120).until(
+			EC.presence_of_element_located((By.XPATH, "/html/body/pre"))
+		)
+		preStartups = sessao.find_element("xpath", "/html/body/pre")
+
+		global arrStartups
+		arrStartups = json.loads(preStartups.text)
+		sessao.quit()
+		print('As startups foram carregadas!')
+		verificarExcel()
+	except TimeoutException:
+		print('Ocorreu um erro na requisição!')
+		return False
+
+def verificarExcel():
+	excel = pd.read_excel(r"excel.xlsx",'Sheet1',header=1)
+	excelStartups = excel["Nome da empresa"]
+	excelLinkedin = excel["Linkedin"]
+
+	global qStartups
+	qStartups = queue.Queue()
+
+	for arrStartup in arrStartups['data']:
+		if not excelStartups.str.contains(arrStartup['name'],regex=False).any():
+			qStartups.put(arrStartup)
+
+	print('As startups foram verificadas no excel!')
+	
+	nOldThreads = threading.active_count()
+	global pesquisandoStartups
+	pesquisandoStartups = True
+
+	global qStartupsExcel
+	qStartupsExcel = queue.Queue()
+
+	while not qStartups.empty():
+		nThreads = threading.active_count()
+		if nThreads < nOldThreads+5:
+			threadPesquisarLinkedin = threading.Thread(target=pesquisarLinkedin, args=(), daemon=True)
+			threadPesquisarLinkedin.start()
+		time.sleep(0.5)
+	
+	while pesquisandoStartups:
+		time.sleep(0.5)
+
+	print('As startups foram pesquisadas no linkedin!')
+
+	inserirExcel()
+
+def pesquisarLinkedin():
+	try:
+		arrStartup = qStartups.get()
+		#Variáveis de configuração da sessao
+		driver_path = 'chromedriver'
+		download_dir = "D:\\selenium"
+		options = Options()
+		# options.add_argument("--headless")
+		options.add_argument('--no-sandbox')
+		options.add_experimental_option('excludeSwitches', ['enable-logging'])
+		options.add_argument("--window-size=1400,800")
+		options.add_argument('--allow-running-insecure-content')
+		options.add_argument('--ignore-certificate-errors')
+		# options.add_argument(r"user-data-dir={0}".format(ProfilePath))
+		location = ''
+		if arrStartup['country'][list(arrStartup['country'])[0]] != '':
+			location = arrStartup['country'][list(arrStartup['country'])[0]]
+		url = "https://www.linkedin.com/jobs/search/?keywords={0}&location={1}".format(urllib.parse.quote_plus(arrStartup['name']), urllib.parse.quote_plus(location))
+		#Chama a função que abre a sessão com as configurações e o driver já pré-definidos
+		sessaoTemp = webdriver.Chrome(options=options, executable_path=driver_path)
+		#Redireciona a sessão para a url
+		sessaoTemp.get(url)
+	except:
+		print('Ocorreu um erro ao configurar/iniciar a sessao')
+	try:
+		element = WebDriverWait(sessaoTemp, 30).until(
+			EC.element_to_be_clickable((By.XPATH, "/html/body/div[1]/header/nav/div/a[2]"))
+		)
+		btnLogin = sessaoTemp.find_element("xpath", "/html/body/div[1]/header/nav/div/a[2]")
+		btnLogin.click()
+		element = WebDriverWait(sessaoTemp, 5).until(
+			EC.element_to_be_clickable((By.XPATH, "//*[@id='username']"))
+		)
+		inputEmail = sessaoTemp.find_element("xpath", "//*[@id='username']")
+		inputEmail.send_keys('rafaelmartinsdandrade@gmail.com')
+		inputSenha = sessaoTemp.find_element("xpath", "//*[@id='password']")
+		inputSenha.send_keys('tardele11')
+		btnLogin = sessaoTemp.find_element("xpath", "//*[@id='organic-div']/form/div[3]/button")
+		btnLogin.click()
+		element = WebDriverWait(sessaoTemp, 5).until(
+			EC.element_to_be_clickable((By.XPATH, "//*[@id='search-reusables__filters-bar']/div/div/button"))
+		)
+		btnFiltros = sessaoTemp.find_element("xpath", "//*[@id='search-reusables__filters-bar']/div/div/button")
+		btnFiltros.click()
+		element = WebDriverWait(sessaoTemp, 10).until(
+			EC.element_to_be_clickable((By.XPATH, "//span/div/button"))
+		)
+		btnTipoFiltro = sessaoTemp.find_element("xpath", "//span/div/button")
+		btnTipoFiltro.click()
+		element = WebDriverWait(sessaoTemp, 5).until(
+			EC.element_to_be_clickable((By.XPATH, "//div/div/ul/li[@class='search-vertical-filter__dropdown-list-item'][4]"))
+		)
+		liEmpresas = sessaoTemp.find_element("xpath", "//div/div/ul/li[@class='search-vertical-filter__dropdown-list-item'][4]")
+		liEmpresas.click()
+		spanPesquisar = sessaoTemp.find_element("xpath", "//div/div/button[@class='reusable-search-filters-buttons search-reusables__secondary-filters-show-results-button artdeco-button artdeco-button--2 artdeco-button--primary ember-view']")
+		spanPesquisar.click()
+		strUrlLinkedin = ''
+		try:
+			element = WebDriverWait(sessaoTemp, 10).until(
+				EC.element_to_be_clickable((By.XPATH, "//ul[@class='reusable-search__entity-result-list list-style-none']/li[1]/div/div/div[2]/div[1]/div[1]/div/span/span/a"))
+			)
+			linkedinStartup = sessaoTemp.find_element("xpath", "//ul[@class='reusable-search__entity-result-list list-style-none']/li[1]/div/div/div[2]/div[1]/div[1]/div/span/span/a")
+			strUrlLinkedin = linkedinStartup.get_attribute("href")
+			print([arrStartup['name'],strUrlLinkedin])
+			linkedinStartup.click()
+			try:
+				element = WebDriverWait(sessaoTemp, 10).until(
+					EC.element_to_be_clickable((By.XPATH, "//a[@class='ember-view']/span"))
+				)
+				linkedinStartup = sessaoTemp.find_element("xpath", "//a[@class='ember-view']/span")
+				funcionariosStartup = linkedinStartup.text
+				if int(funcionariosStartup.split(' ')[3]) >= 10:
+					qStartupsExcel.put([arrStartup['name'],strUrlLinkedin])
+					print('A startup {0} tem mais de 10 funcionarios'.format(arrStartup['name']))
+				else:
+					qStartupsExcel.put([arrStartup['name'],'-'])
+					print('A startup {0} tem menos de 10 funcionarios'.format(arrStartup['name']))
+			except TimeoutException:
+			qStartupsExcel.put([arrStartup['name'],'-'])
+			print('Não achou a quantidade de funcionarios da startup {0}'.format(arrStartup['name']))
+		except TimeoutException:
+			qStartupsExcel.put([arrStartup['name'],'-'])
+			print('Não achou a startup {0}'.format(arrStartup['name']))
+	except:
+		qStartups.put(arrStartup)
+		print("Ocorreu um erro ao pesquisar a Startup {0}".format(arrStartup['name']))
+	if qStartups.empty():
+		pesquisandoStartups = False
+	return True
+
+def inserirExcel():
+	while not qStartupsExcel.empty():
+		arrStartup = qStartupsExcel.get()
+		print(arrStartup)
 
 if __name__ == '__main__':
 	iniciarSessao()
