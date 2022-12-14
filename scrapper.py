@@ -100,8 +100,7 @@ def processarJson():
 		jsonStartupsTemp = json.loads(preStartupsTemp.text)
 
 		print('Total de startup\'s para pesquisa: {0}'.format(jsonStartupsTemp['total']))
-		# sessao.get("https://startupscanner.com/startups-data?per_page={0}&page=1".format(jsonStartupsTemp['total']))
-		sessao.get("https://startupscanner.com/startups-data?per_page=10&page=1")
+		sessao.get("https://startupscanner.com/startups-data?per_page={0}&page=1".format(jsonStartupsTemp['total']))
 		element = WebDriverWait(sessao, 120).until(
 			EC.presence_of_element_located((By.XPATH, "/html/body/pre"))
 		)
