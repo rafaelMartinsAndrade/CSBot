@@ -124,8 +124,8 @@ def verificarExcel():
 	excelStartups = excel["Nome da empresa"]
 	excelLinkedin = excel["Linkedin"]
 
-	global qStartups
-	qStartups = queue.Queue()
+	global qStartupsExcel
+	qStartupsExcel = queue.Queue()
 
 	gui.atualizarLog('Verificando 1 de {0}'.format(arrStartups['total']))
 
@@ -139,33 +139,10 @@ def verificarExcel():
 
 	gui.atualizarLog('As startup\'s foram verificadas no excel!')
 	
-	nOldThreads = threading.active_count()
+	global inserindoStartups
+	inserindoStartups = True
 
-	global qStartupsExcel
-	qStartupsExcel = queue.Queue()
-
-	global pesquisandoStartups
-	pesquisandoStartups = True
-
-	threadInserirExcel = threading.Thread(target=inserirExcel, args=(), daemon=True)
-	threadInserirExcel.start()
-
-	global iStartupsPesquisadas
-	iStartupsPesquisadas = 1
-
-	gui.atualizarLog('Verificando o número de funcionários!')
-
-	while not qStartups.empty():
-		nThreads = threading.active_count()
-		if nThreads < nOldThreads+4:
-			threadPesquisarLinkedin = threading.Thread(target=pesquisarLinkedin, args=(), daemon=True)
-			threadPesquisarLinkedin.start()
-		time.sleep(0.5)
-	
-	while pesquisandoStartups:
-		time.sleep(0.5)
-
-	gui.atualizarLog('{0} startup\'s foram pesquisadas no linkedin!'.format(arrStartups['total']))
+	inserirExcel()
 
 	while inserindoStartups:
 		time.sleep(0.5)
@@ -293,7 +270,6 @@ def inserirExcel():
 				sheet1 = wb[sheets[0]]
 				j = i+3
 				sheet1.cell(row = j, column = 1).value = arrStartup[0]
-				sheet1.cell(row = j, column = 4).value = arrStartup[1]
 				wb.save("excel.xlsx")
 			except:
 				qStartupsExcel.put(arrStartup)
