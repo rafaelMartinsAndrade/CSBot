@@ -22,6 +22,8 @@ def relative_to_assets(path: str) -> Path:
 
 def carregarTela():
 	global window
+	global canvas
+	global labelLog
 	global scrapper
 	
 	window = tk()
@@ -96,6 +98,7 @@ def carregarTela():
 	button_1 = Button(
 	    image=button_image_1,
 	    borderwidth=0,
+	    background='white',
 	    highlightthickness=0,
 	    command=lambda: globals().update(scrapper=True),
 	    relief="flat"
@@ -106,6 +109,16 @@ def carregarTela():
 	    width=243.0,
 	    height=31.0
 	)
+
+	labelLog = canvas.create_text(
+		288.0,
+	    145.0,
+	    anchor="nw",
+	    text="",
+	    width=233,
+	    fill="#5c5c5c",
+	    font=("Nunito Black", 10 * -1)
+	)
 	window.resizable(False, False)
 	window.mainloop()
 
@@ -115,6 +128,11 @@ def atualizarTela():
 	while window:
 		window.update()
 		time.sleep(1)
+
+def atualizarLog(strLog):
+	if strLog != '' and window:
+		canvas.itemconfig(labelLog, text = strLog)
+		window.update()
 
 if __name__ == '__main__':
 	carregarTela()

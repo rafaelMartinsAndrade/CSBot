@@ -29,6 +29,7 @@ def iniciarPrograma():
 def iniciarScrapper():
 	while gui.window:
 		if gui.scrapper:
+			gui.atualizarLog('Iniciando a pesquisa!')
 			scrapper.iniciarSessao()
 			gui.scrapper = False
 
