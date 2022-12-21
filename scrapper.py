@@ -5,6 +5,7 @@ import time
 import threading
 import queue
 import json
+import math as m
 # from datetime import datetime
 
 # Imports do xlsx
@@ -59,7 +60,7 @@ def iniciarSessao():
 		options.add_argument("--window-size=1000,800")
 		options.add_argument('--allow-running-insecure-content')
 		options.add_argument('--ignore-certificate-errors')
-		options.add_argument(r"user-data-dir={0}".format(ProfilePath))
+		# options.add_argument(r"user-data-dir={0}".format(ProfilePath))
 		global sessao
 		#Chama a função que abre a sessão com as configurações e o driver já prédefinidos
 		sessao = webdriver.Chrome(options=options, executable_path=driver_path)
@@ -94,7 +95,7 @@ def logar():
 		processarJson()
 	except TimeoutException:
 		processarJson()
-	except NoSuchElementException:
+	except NoSuchElementException as e:
 		gui.atualizarLog('Não foi possível pesquisar as startup\'s!')
 		sessao.quit()
 		return False
@@ -107,22 +108,37 @@ def processarJson():
 		preStartupsTemp = sessao.find_element("xpath", "/html/body/pre")
 		jsonStartupsTemp = json.loads(preStartupsTemp.text)
 
-		gui.atualizarLog('Pesquisando {0} startup\'s!'.format(jsonStartupsTemp['total']))
-		sessao.get("https://startupscanner.com/startups-data?per_page={0}&page=1".format(jsonStartupsTemp['total']))
-		element = WebDriverWait(sessao, 120).until(
-			EC.presence_of_element_located((By.XPATH, "/html/body/pre"))
-		)
-		preStartups = sessao.find_element("xpath", "/html/body/pre")
-
 		global arrStartups
-		arrStartups = json.loads(preStartups.text)
+		arrStartups = []
+
+		global totalStartups
+		totalStartups = jsonStartupsTemp['total']
+
+		for i in range(1,(m.ceil(totalStartups/1000)+1)):
+			gui.atualizarLog('Pesquisando {0} startup\'s! {1} de {2}'.format(totalStartups, i, m.ceil(totalStartups/1000)))
+			sessao.get("https://startupscanner.com/startups-data?per_page={0}&page={1}".format(1000,i))
+			element = WebDriverWait(sessao, 120).until(
+				EC.presence_of_element_located((By.XPATH, "/html/body/pre"))
+			)
+			preStartups = sessao.find_element("xpath", "/html/body/pre")
+			arrStartupsTemp = json.loads(preStartups.text)
+
+			if "data" in arrStartupsTemp:
+				for arrStartup in arrStartupsTemp["data"]:
+					arrStartups.append([arrStartup["name"]])
+			else:
+				break
+
 		sessao.quit()
 		gui.atualizarLog('As startup\'s foram carregadas!')
-		if not verificarExcel():
-			return False
+		verificarExcel()
 	except TimeoutException:
-		gui.atualizarLog('Ocorreu um erro na requisição!')
+		gui.atualizarLog('As startup\'s não carregaram!')
 		return False
+	except:
+		gui.atualizarLog('Ocorreu um erro na pesquisa!')
+		return False
+
 
 def verificarExcel():
 	try:
@@ -137,23 +153,25 @@ def verificarExcel():
 		gui.atualizarLog('O excel está desconfigurado!')
 		return False
 
-	global arrStartupsExcel
-	arrStartupsExcel = []
-
-	gui.atualizarLog('Verificando 1 de {0}'.format(arrStartups['total']))
-
 	try:
+		global totalStartups
+		global arrStartupsExcel
+		arrStartupsExcel = []
+
+		gui.atualizarLog('Verificando 1 de {0}'.format(totalStartups))
+
 		iStartupsExcel = 1
-		for arrStartup in arrStartups['data']:
-			gui.atualizarLog('Verificando {0} de {1}'.format(iStartupsExcel, arrStartups['total']))
-			if not excelStartups.str.contains(arrStartup['name'],regex=False).any():
-				arrStartupsExcel.append([arrStartup['name']])
+		for nomeStartup in arrStartups:
+			gui.atualizarLog('Verificando {0} de {1}'.format(iStartupsExcel, totalStartups))
+			if not excelStartups.str.contains(nomeStartup[0],regex=False).any():
+				arrStartupsExcel.append([nomeStartup[0]])
 			iStartupsExcel += 1
 	except:
 		gui.atualizarLog('Ocorreu um erro ao verificar as Startup\'s!')
 		return False
 
 	gui.atualizarLog('As startup\'s foram verificadas no excel!')
+	time.sleep(1)
 	
 	if len(arrStartupsExcel) == 0:
 		gui.atualizarLog('Não foram encontradas novas startup\'s!')
