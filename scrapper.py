@@ -1,18 +1,15 @@
-
 import gui
 
 #Imports necessários
 import time
 import threading
 import queue
-import os
 import json
-import urllib.parse
-from datetime import datetime
+# from datetime import datetime
 
 # Imports do xlsx
 import pandas as pd
-import numpy as np
+# import numpy as np
 from openpyxl import workbook
 from openpyxl import load_workbook
 
@@ -46,34 +43,41 @@ global ProfilePath
 ProfilePath = Path(__file__).parent / Path("./SeleniumProfile")
 
 def iniciarSessao():
-	global inicioScrapper
-	inicioScrapper = datetime.now()
-	inicioScrapper = inicioScrapper.strftime("%H:%M:%S")
-	print('Inicio: {0}, Fim: -'.format(inicioScrapper))
+	try:
+		# global inicioScrapper
+		# inicioScrapper = datetime.now()
+		# inicioScrapper = inicioScrapper.strftime("%H:%M:%S")
+		# print('Inicio: {0}, Fim: -'.format(inicioScrapper))
 
-	#Variáveis de configuração da sessao
-	driver_path = 'chromedriver'
-	download_dir = "D:\\selenium"
-	options = Options()
-	options.add_argument("--headless")
-	options.add_argument('--no-sandbox')
-	options.add_experimental_option('excludeSwitches', ['enable-logging'])
-	options.add_argument("--window-size=1000,800")
-	options.add_argument('--allow-running-insecure-content')
-	options.add_argument('--ignore-certificate-errors')
-	options.add_argument(r"user-data-dir={0}".format(ProfilePath))
-	global sessao
-	#Chama a função que abre a sessão com as configurações e o driver já prédefinidos
-	sessao = webdriver.Chrome(options=options, executable_path=driver_path)
-	#Redireciona a sessão para a url
-	sessao.get(r"https://startupscanner.com/startups-data?per_page=1&page=1")
+		#Variáveis de configuração da sessao
+		driver_path = 'chromedriver'
+		download_dir = "D:\\selenium"
+		options = Options()
+		options.add_argument("--headless")
+		options.add_argument('--no-sandbox')
+		options.add_experimental_option('excludeSwitches', ['enable-logging'])
+		options.add_argument("--window-size=1000,800")
+		options.add_argument('--allow-running-insecure-content')
+		options.add_argument('--ignore-certificate-errors')
+		options.add_argument(r"user-data-dir={0}".format(ProfilePath))
+		global sessao
+		#Chama a função que abre a sessão com as configurações e o driver já prédefinidos
+		sessao = webdriver.Chrome(options=options, executable_path=driver_path)
+		#Redireciona a sessão para a url
+		sessao.get(r"https://startupscanner.com/startups-data?per_page=1&page=1")
+		logar()
+	except:
+		gui.atualizarLog('Não foi possível pesquisar as startup\'s')
+		try:
+			sessao.quit()
+		except:
+			pass
+		return False
 
-	logar()
-
-	global fimScrapper
-	fimScrapper = datetime.now()
-	fimScrapper = fimScrapper.strftime("%H:%M:%S")
-	print('Inicio: {0}, Fim: {1}'.format(inicioScrapper, fimScrapper))
+	# global fimScrapper
+	# fimScrapper = datetime.now()
+	# fimScrapper = fimScrapper.strftime("%H:%M:%S")
+	# print('Inicio: {0}, Fim: {1}'.format(inicioScrapper, fimScrapper))
 
 def logar():
 	try:
@@ -114,70 +118,104 @@ def processarJson():
 		arrStartups = json.loads(preStartups.text)
 		sessao.quit()
 		gui.atualizarLog('As startup\'s foram carregadas!')
-		verificarExcel()
+		if not verificarExcel():
+			return False
 	except TimeoutException:
 		gui.atualizarLog('Ocorreu um erro na requisição!')
 		return False
 
 def verificarExcel():
-	excel = pd.read_excel(r"excel.xlsx",'Sheet1',header=1)
-	excelStartups = excel["Nome da empresa"]
-	excelLinkedin = excel["Linkedin"]
+	try:
+		excel = pd.read_excel(r"startups.xlsx",'Sheet1',header=1)
+	except:
+		gui.atualizarLog('Ocorreu um erro ao abrir o excel')
+		return False
+	try:
+		excelStartups = excel["Nome da empresa"]
+		excelLinkedin = excel["Linkedin"]
+	except:
+		gui.atualizarLog('O excel está desconfigurado!')
+		return False
 
-	global qStartupsExcel
-	qStartupsExcel = queue.Queue()
+	global arrStartupsExcel
+	arrStartupsExcel = []
 
 	gui.atualizarLog('Verificando 1 de {0}'.format(arrStartups['total']))
 
-	iStartupsExcel = 0
-	for arrStartup in arrStartups['data']:
-		if not excelStartups.str.contains(arrStartup['name'],regex=False).any():
-			qStartups.put(arrStartup)
-		iStartupsExcel += 1
-		gui.atualizarLog('Verificando {0} de {1}'.format(iStartupsExcel, arrStartups['total']))
-
+	try:
+		iStartupsExcel = 1
+		for arrStartup in arrStartups['data']:
+			gui.atualizarLog('Verificando {0} de {1}'.format(iStartupsExcel, arrStartups['total']))
+			if not excelStartups.str.contains(arrStartup['name'],regex=False).any():
+				arrStartupsExcel.append([arrStartup['name']])
+			iStartupsExcel += 1
+	except:
+		gui.atualizarLog('Ocorreu um erro ao verificar as Startup\'s!')
+		return False
 
 	gui.atualizarLog('As startup\'s foram verificadas no excel!')
 	
+	if len(arrStartupsExcel) == 0:
+		gui.atualizarLog('Não foram encontradas novas startup\'s!')
+		return True
+
 	global inserindoStartups
 	inserindoStartups = True
+	
+	global iStartupsInseridas
+	iStartupsInseridas = 1
 
-	inserirExcel()
+	if inserirExcel():
+		gui.atualizarLog('{0} startup\'s foram inseridas no excel!'.format(len(arrStartupsExcel)))
+		return True
 
-	while inserindoStartups:
-		time.sleep(0.5)
-
-	gui.atualizarLog('{0} startup\'s foram inseridas no excel!'.format(arrStartups['total']))
+	return False
 
 def inserirExcel():
-	global pesquisandoStartups
+	global inserindoStartups
+	global iStartupsInseridas
+	global arrStartupsExcel
 
-	while not qStartupsExcel.empty() or pesquisandoStartups:
-		if qStartupsExcel.empty():
-			time.sleep(1)
-		else:
-			arrStartup = qStartupsExcel.get()
+	try:
+		i = 0
+		excel = pd.ExcelFile("startups.xlsx")
+		df = excel.parse('Sheet1', skiprows=2, index_col=1,header = None, na_values=['NA'])
+	except:
+		gui.atualizarLog('Ocorreu um erro ao abrir o excel')
+		return False
+
+	try:
+		if not df.empty:
+			arrExcelStartups = df[0]
+			for startup in arrExcelStartups:
+				try:
+					m.isnan(float(startup))
+					break
+				except:
+					i += 1
+		wb = load_workbook("startups.xlsx")
+		sheets = wb.sheetnames
+		sheet1 = wb[sheets[0]]
+		for startup in arrStartupsExcel:
 			try:
-				excel = pd.ExcelFile("excel.xlsx")
-				excel = excel.parse('Sheet1', skiprows=1, index_col=None, na_values=['NA'])
-				arrStartups = excel['Nome da empresa']
-				i = 0
-				for startup in arrStartups:
-					try:
-						m.isnan(float(startup))
-						break
-					except:
-						i += 1
-
-				wb = load_workbook("excel.xlsx")
-				sheets = wb.sheetnames
-				sheet1 = wb[sheets[0]]
 				j = i+3
-				sheet1.cell(row = j, column = 1).value = arrStartup[0]
-				wb.save("excel.xlsx")
+				sheet1.cell(row = j, column = 1).value = startup[0]
+				iStartupsInseridas += 1
+				i+=1
 			except:
-				qStartupsExcel.put(arrStartup)
+				iStartupsInseridas -= 1
+	except:
+		gui.atualizarLog('Ocorreu um erro ao processar o excel')
+		return False
+
+	try:
+		wb.save("startups.xlsx")
+	except:
+		gui.atualizarLog('Ocorreu um erro ao salvar o excel')
+		return False
+
 	inserindoStartups = False
+	return True
 
 if __name__ == '__main__':
 	iniciarSessao()

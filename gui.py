@@ -27,7 +27,7 @@ def carregarTela():
 	global scrapper
 	
 	window = tk()
-	
+	window.title("CSBot - Beta")
 	window.geometry("550x235")
 	window.configure(bg = "#FFFFFF")
 
@@ -116,6 +116,7 @@ def carregarTela():
 	    anchor="nw",
 	    text="",
 	    width=233,
+	    justify="left",
 	    fill="#5c5c5c",
 	    font=("Nunito Black", 10 * -1)
 	)
