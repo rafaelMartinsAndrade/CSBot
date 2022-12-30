@@ -8,6 +8,5 @@ from openpyxl import load_workbook
 import pandas as pd
 import queue as q
 
-qTeste = q.Queue()
-qTeste.put("+Mu")
-print(qTeste.get())
+for i in range(1,4):
+	print(i)

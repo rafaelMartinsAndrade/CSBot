@@ -116,8 +116,10 @@ def processarJson():
 		global totalStartups
 		totalStartups = jsonStartupsTemp['total']
 
-		for i in range(1,(m.ceil(totalStartups/1000)+1)):
+		# for i in range(1,(m.ceil(totalStartups/1000)+1)):
+		for i in range(1,4):
 			gui.atualizarLog('Pesquisando {0} startup\'s! {1} de {2}'.format(totalStartups, i, m.ceil(totalStartups/1000)))
+			# sessao.get("https://startupscanner.com/startups-data?per_page={0}&page={1}".format(1000,i))
 			sessao.get("https://startupscanner.com/startups-data?per_page={0}&page={1}".format(1000,i))
 			element = WebDriverWait(sessao, 120).until(
 				EC.presence_of_element_located((By.XPATH, "/html/body/pre"))
@@ -156,25 +158,21 @@ def verificarExcel():
 		return False
 
 	try:
-		global totalStartups
 		global qStartupsPesquisa
 		qStartupsPesquisa = Queue()
 
-		gui.atualizarLog('Verificando 1 de {0}'.format(totalStartups))
+		gui.atualizarLog('Verificando 1 de {0}'.format(len(arrStartups)))
 
 		iStartupsExcel = 0
 		for nomeStartup in arrStartups:
-			gui.atualizarLog('Verificando {0} de {1}'.format(iStartupsExcel, totalStartups))
+			gui.atualizarLog('Verificando {0} de {1}'.format(iStartupsExcel, len(arrStartups)))
 			if not excelStartups.str.contains(nomeStartup,regex=False).any():
 				qStartupsPesquisa.put(nomeStartup)
-			iStartupsExcel += 1
+				iStartupsExcel += 1
 	except:
 		gui.atualizarLog('Ocorreu um erro ao verificar as Startup\'s!')
 		return False
 
-	gui.atualizarLog('As startup\'s foram verificadas no excel!')
-	time.sleep(1)
-	
 	if qStartupsPesquisa.qsize() == 0:
 		gui.atualizarLog('Não foram encontradas novas startup\'s!')
 		return True
@@ -224,20 +222,21 @@ def pesquisarLinkedin():
 		#Redireciona a sessão para a url
 		sessao.get(r"https://www.google.com/search?q={0}+empresa+linkedin".format(urllib.parse.quote_plus(strStartup)))
 	except:
-		gui.atualizarLog('Ocorreu um erro ao iniciar a pesquisa da startup {0}'.format(strStartup))
+		print('Ocorreu um erro ao iniciar a pesquisa da startup {0}'.format(strStartup))
 		qStartupsPesquisa.put(strStartup)
 		return False
 	try:
+		dictStartupsExcel[strStartup] = ""
 		element = WebDriverWait(sessao, 10).until(
-			EC.presence_of_element_located((By.XPATH, "(//a[./h3[contains(text(), 'LinkedIn')] and (contains(@href, 'https://www.linkedin.com/company') or contains(@href, 'https://br.linkedin.com/company'))])[1]"))
+			EC.presence_of_element_located((By.XPATH, "(//a[./h3[contains(text(), 'LinkedIn')] or ./h3[contains(text(), 'Linkedin')] and (contains(@href, 'linkedin.com/company'))])[1]"))
 		)
 		try:
-			dictStartupsExcel[strStartup] = ""
-			linkLinkedin = sessao.find_element("xpath", "(//a[./h3[contains(text(), 'LinkedIn')] and (contains(@href, 'https://www.linkedin.com/company') or contains(@href, 'https://br.linkedin.com/company'))])[1]")
+			linkLinkedin = sessao.find_element("xpath", "(//a[./h3[contains(text(), 'LinkedIn')] or ./h3[contains(text(), 'Linkedin')] and (contains(@href, 'linkedin.com/company'))])[1]")
 			urlLinkedin = linkLinkedin.get_attribute('href')
 			dictStartupsExcel[strStartup] = urlLinkedin
 		except:
 			print('Ocorreu um erro ao processar o linkedin da startup {0}'.format(strStartup))
+			sessao.quit()
 		if qStartupsPesquisa.empty():
 			global pesquisandoLinkedin
 			pesquisandoLinkedin = False
@@ -245,7 +244,7 @@ def pesquisarLinkedin():
 		return True
 	except:
 		print('Ocorreu um erro ao pesquisar a startup {0}'.format(strStartup))
-		# qStartupsPesquisa.put(strStartup)
+		sessao.quit()
 		return False
 
 def inserirExcel():
@@ -285,6 +284,8 @@ def inserirExcel():
 				iStartupsInseridas -= 1
 	except:
 		gui.atualizarLog('Ocorreu um erro ao processar o excel')
+		while True:
+			time.sleep(1)
 		return False
 
 	try:
