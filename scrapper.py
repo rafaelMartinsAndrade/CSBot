@@ -116,10 +116,8 @@ def processarJson():
 		global totalStartups
 		totalStartups = jsonStartupsTemp['total']
 
-		# for i in range(1,(m.ceil(totalStartups/1000)+1)):
-		for i in range(1,4):
+		for i in range(1,(m.ceil(totalStartups/1000)+1)):
 			gui.atualizarLog('Pesquisando {0} startup\'s! {1} de {2}'.format(totalStartups, i, m.ceil(totalStartups/1000)))
-			# sessao.get("https://startupscanner.com/startups-data?per_page={0}&page={1}".format(1000,i))
 			sessao.get("https://startupscanner.com/startups-data?per_page={0}&page={1}".format(1000,i))
 			element = WebDriverWait(sessao, 120).until(
 				EC.presence_of_element_located((By.XPATH, "/html/body/pre"))
@@ -164,8 +162,10 @@ def verificarExcel():
 		gui.atualizarLog('Verificando 1 de {0}'.format(len(arrStartups)))
 
 		iStartupsExcel = 0
+		iVerificaStartup = 0
 		for nomeStartup in arrStartups:
-			gui.atualizarLog('Verificando {0} de {1}'.format(iStartupsExcel, len(arrStartups)))
+			iVerificaStartup += 1
+			gui.atualizarLog('Verificando {0} de {1}'.format(iVerificaStartup, len(arrStartups)))
 			if not excelStartups.str.contains(nomeStartup,regex=False).any():
 				qStartupsPesquisa.put(nomeStartup)
 				iStartupsExcel += 1

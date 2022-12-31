@@ -7,6 +7,6 @@ from openpyxl import load_workbook
 
 import pandas as pd
 import queue as q
-
-for i in range(1,4):
-	print(i)
+import os
+import sys
+print(os.path.dirname(sys.executable))
